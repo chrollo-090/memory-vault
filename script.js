@@ -1,7 +1,7 @@
 // ==========================================
-// 1. DATA STORE (Demo Cards + Saved State)
+// 1. DATA STORE (With LocalStorage Support)
 // ==========================================
-let memories = [
+const defaultMemories = [
     {
         id: 101,
         title: "Kyoto Autumn Walk",
@@ -26,33 +26,32 @@ let memories = [
     }
 ];
 
+// Load memories from localStorage or fallback to defaults
+let memories = JSON.parse(localStorage.getItem("memoryVault_items")) || defaultMemories;
+
 // MediaRecorder setup for Voice Notes
 let mediaRecorder;
 let audioChunks = [];
 let recordedAudioBlobUrl = null;
 
 // ==========================================
-// 2. DOM ELEMENTS (Matched to your HTML IDs)
+// 2. DOM ELEMENTS
 // ==========================================
 const memoryGrid = document.getElementById("memoryGrid");
 const navItems = document.querySelectorAll(".nav-btn");
 const searchInput = document.getElementById("searchInput");
 
-// Modal Elements
 const uploadModal = document.getElementById("uploadModal");
 const openUploadBtn = document.getElementById("openUploadBtn");
 const closeModalBtn = document.getElementById("closeModalBtn");
 const memoryForm = document.getElementById("memoryForm");
 
-// Time Capsule Toggle Elements
 const isCapsuleCheckbox = document.getElementById("isCapsule");
 const capsuleDateGroup = document.getElementById("capsuleDateGroup");
 
-// Audio Elements
 const recordVoiceBtn = document.getElementById("recordVoiceBtn");
 const voiceStatus = document.getElementById("voiceStatus");
 
-// Share Modal Elements
 const shareModal = document.getElementById("shareModal");
 const closeShareBtn = document.getElementById("closeShareBtn");
 const shareLinkInput = document.getElementById("shareLinkInput");
@@ -69,8 +68,6 @@ function renderMemories(filterCategory = "navVault", searchQuery = "") {
         let matchCategory = true;
         if (filterCategory === "navUploads") matchCategory = mem.category === "uploads";
         else if (filterCategory === "navCapsules") matchCategory = mem.isTimeCapsule;
-        else if (filterCategory === "navShared") matchCategory = mem.isShared;
-        // "navVault" shows all by default
 
         const matchSearch = mem.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
                             mem.description.toLowerCase().includes(searchQuery.toLowerCase());
@@ -131,7 +128,6 @@ navItems.forEach(item => {
         e.preventDefault();
         navItems.forEach(i => i.classList.remove("active"));
         item.classList.add("active");
-        
         renderMemories(item.id, searchInput.value);
     });
 });
@@ -155,7 +151,6 @@ if (closeShareBtn && shareModal) {
     closeShareBtn.addEventListener("click", () => shareModal.classList.add("hidden"));
 }
 
-// Toggle Time Capsule Date picker
 if (isCapsuleCheckbox && capsuleDateGroup) {
     isCapsuleCheckbox.addEventListener("change", (e) => {
         if (e.target.checked) {
@@ -166,7 +161,6 @@ if (isCapsuleCheckbox && capsuleDateGroup) {
     });
 }
 
-// Copy Share Link
 if (copyLinkBtn && shareLinkInput && copyStatus) {
     copyLinkBtn.addEventListener("click", () => {
         shareLinkInput.select();
@@ -214,7 +208,7 @@ if (memoryForm) {
         e.preventDefault();
 
         const title = document.getElementById("memoryTitle").value;
-        const description = "Newly uploaded private memory."; // Optional description field handling
+        const description = "Newly uploaded private memory.";
         const fileInput = document.getElementById("fileInput");
         const isCapsule = document.getElementById("isCapsule").checked;
         const unlockDate = document.getElementById("unlockDate").value;
@@ -237,6 +231,7 @@ if (memoryForm) {
         };
 
         memories.unshift(newMemory);
+        localStorage.setItem("memoryVault_items", JSON.stringify(memories));
 
         memoryForm.reset();
         recordedAudioBlobUrl = null;
@@ -244,7 +239,6 @@ if (memoryForm) {
         if (capsuleDateGroup) capsuleDateGroup.classList.add("hidden");
         uploadModal.classList.add("hidden");
 
-        // Switch view to 'My Uploads' automatically
         navItems.forEach(i => i.classList.remove("active"));
         const uploadsTab = document.getElementById("navUploads");
         if (uploadsTab) uploadsTab.classList.add("active");
@@ -269,8 +263,11 @@ window.addEventListener("DOMContentLoaded", () => {
             if (isLocked) {
                 alert(`⏳ This Memory Vault capsule is locked until ${targetMemory.unlockDate}!`);
             } else {
-                alert(`✨ Shared Memory: "${targetMemory.title}"\n\n${targetMemory.description}`);
+                // Instantly pop up or highlight the targeted shared memory card!
+                alert(`✨ Shared Memory Found: "${targetMemory.title}"\n\n${targetMemory.description}`);
             }
+        } else {
+            alert("⚠️ This shared memory item could not be found locally on this device.");
         }
     }
 });
