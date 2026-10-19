@@ -4,7 +4,6 @@
 const SUPABASE_URL = "https://yevyshrrkdxzoeccxmer.supabase.co"; 
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlldnlzaHJya2R4em9lY2N4bWVyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTIzOTcxNjAsImV4cCI6MjEwNzk3MzE2MH0._6MqLnoo5u9Cvth_FqBpjEp4QUty_BqD-pLmMMdtWQw"; 
 
-// Safety check to ensure Supabase loaded correctly from CDN
 if (!window.supabase) {
     alert("Error: Supabase library failed to load. Check your internet connection or script tag.");
 }
@@ -19,7 +18,7 @@ let audioChunks = [];
 let recordedAudioBlob = null;
 
 // ==========================================
-// 2. DOM ELEMENTS (Keep your existing elements below...)
+// 2. DOM ELEMENTS
 // ==========================================
 const memoryGrid = document.getElementById("memoryGrid");
 const navItems = document.querySelectorAll(".nav-btn");
@@ -41,6 +40,7 @@ const closeShareBtn = document.getElementById("closeShareBtn");
 const shareLinkInput = document.getElementById("shareLinkInput");
 const copyLinkBtn = document.getElementById("copyLinkBtn");
 const copyStatus = document.getElementById("copyStatus");
+
 // ==========================================
 // 3. AUTHENTICATION & UI MANAGEMENT
 // ==========================================
@@ -64,7 +64,6 @@ async function initAuth() {
     }
 }
 
-// Listen for subsequent auth changes (sign in/out)
 supabaseClient.auth.onAuthStateChange((event, session) => {
     currentUser = session ? session.user : null;
     updateAuthUI();
@@ -117,6 +116,7 @@ async function showAuthModalOrPrompt() {
         alert("Signed in successfully!");
     }
 }
+
 // ==========================================
 // 4. FETCH MEMORIES FROM CLOUD DATABASE
 // ==========================================
@@ -228,8 +228,128 @@ if (openUploadBtn && uploadModal) {
         if (!currentUser) {
             alert("Please sign in first to upload memories to the cloud.");
             showAuthModalOrPrompt();
+            return;
+        }
+        uploadModal.classList.remove("hidden");
+    });
+}
+if (closeModalBtn && uploadModal) closeModalBtn.addEventListener("click", () => uploadModal.classList.add("hidden"));
+if (closeShareBtn && shareModal) closeShareBtn.addEventListener("click", () => shareModal.classList.add("hidden"));
+
+if (isCapsuleCheckbox && capsuleDateGroup) {
+    isCapsuleCheckbox.addEventListener("change", (e) => {
+        capsuleDateGroup.classList.toggle("hidden", !e.target.checked);
+    });
+}
+
+if (copyLinkBtn && shareLinkInput && copyStatus) {
+    copyLinkBtn.addEventListener("click", () => {
+        shareLinkInput.select();
+        navigator.clipboard.writeText(shareLinkInput.value);
+        copyStatus.textContent = "Copied to clipboard! ✅";
+    });
+}
+
+// Voice Recording
+if (recordVoiceBtn) {
+    recordVoiceBtn.addEventListener("click", async () => {
+        try {
+            if (!mediaRecorder || mediaRecorder.state === "inactive") {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                mediaRecorder = new MediaRecorder(stream);
+                audioChunks = [];
+
+                mediaRecorder.ondataavailable = (e) => audioChunks.push(e.data);
+                mediaRecorder.onstop = () => {
+                    recordedAudioBlob = new Blob(audioChunks, { type: "audio/webm" });
+                    voiceStatus.textContent = "Voice note recorded! 🎙️✅";
+                };
+
+                mediaRecorder.start();
+                recordVoiceBtn.textContent = "⏹️ Stop Recording";
+                voiceStatus.textContent = "Recording in progress... 🔴";
+            } else {
+                mediaRecorder.stop();
+                recordVoiceBtn.textContent = "🎙️ Record Voice Note";
+            }
+        } catch (err) {
+            alert("Microphone permission denied or not available!");
+        }
+    });
+}
+
+// Upload Form Submission to Supabase Cloud
+if (memoryForm) {
+    memoryForm.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        if (!currentUser) return alert("You must be logged in.");
+
+        const title = document.getElementById("memoryTitle").value;
+        const fileInput = document.getElementById("fileInput");
+        const isCapsule = document.getElementById("isCapsule").checked;
+        const unlockDate = document.getElementById("unlockDate").value;
+
+        let imageUrl = "https://images.unsplash.com/photo-1518173946687-a4c8a383392e?auto=format&fit=crop&w=600&q=80";
+        let audioUrl = null;
+
+        if (fileInput.files && fileInput.files[0]) {
+            const file = fileInput.files[0];
+            const filePath = `${currentUser.id}/${Date.now()}_${file.name}`;
+            const { error: uploadError } = await supabaseClient.storage
+                .from("memory-files")
+                .upload(filePath, file);
+
+            if (!uploadError) {
+                const { data: publicUrlData } = supabaseClient.storage
+                    .from("memory-files")
+                    .getPublicUrl(filePath);
+                imageUrl = publicUrlData.publicUrl;
+            }
+        }
+
+        if (recordedAudioBlob) {
+            const audioPath = `${currentUser.id}/${Date.now()}_audio.webm`;
+            const { error: audioError } = await supabaseClient.storage
+                .from("memory-files")
+                .upload(audioPath, recordedAudioBlob);
+
+            if (!audioError) {
+                const { data: audioPublicUrl } = supabaseClient.storage
+                    .from("memory-files")
+                    .getPublicUrl(audioPath);
+                audioUrl = audioPublicUrl.publicUrl;
+            }
+        }
+
+        const { error: dbError } = await supabaseClient.from("memories").insert([
+            {
+                user_id: currentUser.id,
+                title: title,
+                description: "Cloud private memory upload.",
+                image_url: imageUrl,
+                audio_url: audioUrl,
+                is_time_capsule: isCapsule,
+                unlock_date: isCapsule && unlockDate ? unlockDate : null
+            }
+        ]);
+
+        if (dbError) {
+            alert("Error saving memory: " + dbError.message);
+            return;
+        }
+
+        memoryForm.reset();
+        recordedAudioBlob = null;
+        if (voiceStatus) voiceStatus.textContent = "Ready to record...";
+        if (capsuleDateGroup) capsuleDateGroup.classList.add("hidden");
+        uploadModal.classList.add("hidden");
+
+        fetchMemories("navVault");
+    });
+}
+
 // ==========================================
-// 8. PAGE LOAD INITIALIZATION
+// 7. PAGE LOAD INITIALIZATION
 // ==========================================
 window.addEventListener("DOMContentLoaded", () => {
     initAuth();
