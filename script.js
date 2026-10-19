@@ -111,11 +111,12 @@ async function showAuthModalOrPrompt() {
 }
 
 // ==========================================
-// 4. FETCH MEMORIES FROM CLOUD DATABASE
+// 4. FETCH MEMORIES & SHARED LINK ROUTING
 // ==========================================
 async function fetchMemories(filterCategory = "navVault", searchQuery = "") {
     if (!currentUser) return;
 
+    // Fetch user's own memories securely
     let { data, error } = await supabaseClient
         .from("memories")
         .select("*")
@@ -128,6 +129,37 @@ async function fetchMemories(filterCategory = "navVault", searchQuery = "") {
     }
 
     memories = data || [];
+
+    // Check if user arrived via a shared link (?view_id=...)
+    const urlParams = new URLSearchParams(window.location.search);
+    const viewId = urlParams.get("view_id");
+
+    if (viewId) {
+        let targetMemory = memories.find(m => m.id == viewId);
+        if (!targetMemory) {
+            // Fetch the specific shared memory if it belongs to another user
+            let { data: sharedData } = await supabaseClient
+                .from("memories")
+                .select("*")
+                .eq("id", viewId)
+                .single();
+            
+            if (sharedData) {
+                memories.unshift(sharedData); // Temporarily include it in the grid view
+                targetMemory = sharedData;
+            }
+        }
+
+        if (targetMemory) {
+            const isLocked = targetMemory.is_time_capsule && targetMemory.unlock_date && new Date() < new Date(targetMemory.unlock_date);
+            if (isLocked) {
+                alert(`⏳ This Time Capsule is locked until ${new Date(targetMemory.unlock_date).toLocaleDateString()}!`);
+            } else {
+                alert(`✨ Shared Memory Loaded: "${targetMemory.title}"`);
+            }
+        }
+    }
+
     renderMemoryGrid(filterCategory, searchQuery);
 }
 
@@ -282,4 +314,68 @@ if (memoryForm) {
         const isCapsule = document.getElementById("isCapsule").checked;
         const unlockDate = document.getElementById("unlockDate").value;
 
-        let imageUrl = "
+        let imageUrl = "https://images.unsplash.com/photo-1518173946687-a4c8a383392e?auto=format&fit=crop&w=600&q=80";
+        let audioUrl = null;
+
+        if (fileInput.files && fileInput.files[0]) {
+            const file = fileInput.files[0];
+            const filePath = `${currentUser.id}/${Date.now()}_${file.name}`;
+            const { error: uploadError } = await supabaseClient.storage
+                .from("memory-files")
+                .upload(filePath, file);
+
+            if (!uploadError) {
+                const { data: publicUrlData } = supabaseClient.storage
+                    .from("memory-files")
+                    .getPublicUrl(filePath);
+                imageUrl = publicUrlData.publicUrl;
+            }
+        }
+
+        if (recordedAudioBlob) {
+            const audioPath = `${currentUser.id}/${Date.now()}_audio.webm`;
+            const { error: audioError } = await supabaseClient.storage
+                .from("memory-files")
+                .upload(audioPath, recordedAudioBlob);
+
+            if (!audioError) {
+                const { data: audioPublicUrl } = supabaseClient.storage
+                    .from("memory-files")
+                    .getPublicUrl(audioPath);
+                audioUrl = audioPublicUrl.publicUrl;
+            }
+        }
+
+        const { error: dbError } = await supabaseClient.from("memories").insert([
+            {
+                user_id: currentUser.id,
+                title: title,
+                description: "Cloud private memory upload.",
+                image_url: imageUrl,
+                audio_url: audioUrl,
+                is_time_capsule: isCapsule,
+                unlock_date: isCapsule && unlockDate ? unlockDate : null
+            }
+        ]);
+
+        if (dbError) {
+            alert("Error saving memory: " + dbError.message);
+            return;
+        }
+
+        memoryForm.reset();
+        recordedAudioBlob = null;
+        if (voiceStatus) voiceStatus.textContent = "Ready to record...";
+        if (capsuleDateGroup) capsuleDateGroup.classList.add("hidden");
+        uploadModal.classList.add("hidden");
+
+        fetchMemories("navVault");
+    });
+}
+
+// ==========================================
+// 7. PAGE LOAD INITIALIZATION
+// ==========================================
+window.addEventListener("DOMContentLoaded", () => {
+    updateAuthUI();
+});
