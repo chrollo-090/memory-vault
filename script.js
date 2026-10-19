@@ -111,4 +111,147 @@ function renderMemories(filterCategory = "all", searchQuery = "") {
         // Share button listener inside rendered card
         const shareBtn = card.querySelector(".share-action-btn");
         shareBtn.addEventListener("click", () => {
-            const shareUrl = `
+            const shareUrl = `https://chrollo-090.github.io/memory-vault/?view_id=${mem.id}&token=secure_key_${Math.random().toString(36).substring(2, 9)}`;
+            shareLinkInput.value = shareUrl;
+            copyStatus.textContent = "";
+            shareModal.classList.remove("hidden");
+        });
+
+        memoryGrid.appendChild(card);
+    });
+}
+
+// ==========================================
+// 4. SIDEBAR & SEARCH EVENT LISTENERS
+// ==========================================
+navItems.forEach(item => {
+    item.addEventListener("click", (e) => {
+        e.preventDefault();
+        navItems.forEach(i => i.classList.remove("active"));
+        item.classList.add("active");
+        
+        const category = item.getAttribute("data-category");
+        renderMemories(category, searchInput.value);
+    });
+});
+
+searchInput.addEventListener("input", (e) => {
+    const activeNav = document.querySelector(".nav-item.active");
+    const activeCategory = activeNav ? activeNav.getAttribute("data-category") : "all";
+    renderMemories(activeCategory, e.target.value);
+});
+
+// ==========================================
+// 5. MODALS OPEN / CLOSE LOGIC
+// ==========================================
+openModalBtn.addEventListener("click", () => createModal.classList.remove("hidden"));
+closeModalBtn.addEventListener("click", () => createModal.classList.add("hidden"));
+closeShareModalBtn.addEventListener("click", () => shareModal.classList.add("hidden"));
+
+// Copy Share Link to Clipboard
+copyShareBtn.addEventListener("click", () => {
+    shareLinkInput.select();
+    navigator.clipboard.writeText(shareLinkInput.value);
+    copyStatus.textContent = "Copied to clipboard! ✅";
+});
+
+// ==========================================
+// 6. LIVE MICROPHONE VOICE RECORDING
+// ==========================================
+recordAudioBtn.addEventListener("click", async () => {
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        mediaRecorder = new MediaRecorder(stream);
+        audioChunks = [];
+
+        mediaRecorder.ondataavailable = (e) => audioChunks.push(e.data);
+        mediaRecorder.onstop = () => {
+            const audioBlob = new Blob(audioChunks, { type: "audio/webm" });
+            recordedAudioBlobUrl = URL.createObjectURL(audioBlob);
+            audioStatus.textContent = "Voice note recorded! 🎙️✅";
+        };
+
+        mediaRecorder.start();
+        recordAudioBtn.disabled = true;
+        stopAudioBtn.disabled = false;
+        audioStatus.textContent = "Recording in progress... 🔴";
+    } catch (err) {
+        alert("Microphone permission denied or not available!");
+    }
+});
+
+stopAudioBtn.addEventListener("click", () => {
+    if (mediaRecorder && mediaRecorder.state !== "inactive") {
+        mediaRecorder.stop();
+        recordAudioBtn.disabled = false;
+        stopAudioBtn.disabled = true;
+    }
+});
+
+// ==========================================
+// 7. FORM SUBMISSION (Create New Memory)
+// ==========================================
+memoryForm.addEventListener("submit", (e) => {
+    e.preventDefault();
+
+    const title = document.getElementById("titleInput").value;
+    const description = document.getElementById("descriptionInput").value;
+    const imageFileInput = document.getElementById("imageFileInput");
+    const isCapsule = document.getElementById("capsuleCheckbox").checked;
+    const unlockDate = document.getElementById("unlockDateInput").value;
+
+    let imageUrl = "https://images.unsplash.com/photo-1518173946687-a4c8a383392e?auto=format&fit=crop&w=600&q=80"; // Default placeholder
+    if (imageFileInput.files && imageFileInput.files[0]) {
+        imageUrl = URL.createObjectURL(imageFileInput.files[0]);
+    }
+
+    const newMemory = {
+        id: Date.now(),
+        title: title,
+        description: description,
+        category: "uploads", // Goes to "My Uploads"
+        image: imageUrl,
+        audioUrl: recordedAudioBlobUrl,
+        isTimeCapsule: isCapsule,
+        unlockDate: isCapsule ? unlockDate : null,
+        tags: ["upload"]
+    };
+
+    memories.unshift(newMemory);
+
+    // Reset Form State
+    memoryForm.reset();
+    recordedAudioBlobUrl = null;
+    audioStatus.textContent = "";
+    createModal.classList.add("hidden");
+
+    // Switch view to 'My Uploads' automatically
+    navItems.forEach(i => i.classList.remove("active"));
+    const uploadsTab = document.querySelector('[data-category="uploads"]');
+    if (uploadsTab) uploadsTab.classList.add("active");
+
+    renderMemories("uploads");
+});
+
+// ==========================================
+// 8. PAGE LOAD & DIRECT LINK ROUTING
+// ==========================================
+window.addEventListener("DOMContentLoaded", () => {
+    renderMemories("all");
+
+    // Check if the URL contains a shared memory ID query parameter
+    const urlParams = new URLSearchParams(window.location.search);
+    const viewId = urlParams.get("view_id");
+
+    if (viewId) {
+        const targetMemory = memories.find(m => m.id == viewId);
+        if (targetMemory) {
+            const isLocked = targetMemory.isTimeCapsule && new Date() < new Date(targetMemory.unlockDate);
+            if (isLocked) {
+                alert(`⏳ This Memory Vault capsule is locked until ${targetMemory.unlockDate}!`);
+            } else {
+                alert(`✨ Shared Memory: "${targetMemory.title}"\n\n${targetMemory.description}`);
+            }
+        }
+    }
+});
