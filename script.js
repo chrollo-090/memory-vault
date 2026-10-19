@@ -42,7 +42,7 @@ const copyLinkBtn = document.getElementById("copyLinkBtn");
 const copyStatus = document.getElementById("copyStatus");
 
 // ==========================================
-// 3. AUTHENTICATION & UI MANAGEMENT (Simplified)
+// 3. AUTHENTICATION & UI MANAGEMENT
 // ==========================================
 supabaseClient.auth.onAuthStateChange((event, session) => {
     currentUser = session ? session.user : null;
@@ -55,7 +55,7 @@ supabaseClient.auth.onAuthStateChange((event, session) => {
     }
 });
 
-// Fallback check in case the event listener takes a moment
+// Fallback check to ensure loading state clears promptly
 setTimeout(() => {
     if (!currentUser && document.querySelector(".status-dot")) {
         updateAuthUI();
@@ -109,6 +109,7 @@ async function showAuthModalOrPrompt() {
         alert("Signed in successfully!");
     }
 }
+
 // ==========================================
 // 4. FETCH MEMORIES FROM CLOUD DATABASE
 // ==========================================
@@ -281,68 +282,4 @@ if (memoryForm) {
         const isCapsule = document.getElementById("isCapsule").checked;
         const unlockDate = document.getElementById("unlockDate").value;
 
-        let imageUrl = "https://images.unsplash.com/photo-1518173946687-a4c8a383392e?auto=format&fit=crop&w=600&q=80";
-        let audioUrl = null;
-
-        if (fileInput.files && fileInput.files[0]) {
-            const file = fileInput.files[0];
-            const filePath = `${currentUser.id}/${Date.now()}_${file.name}`;
-            const { error: uploadError } = await supabaseClient.storage
-                .from("memory-files")
-                .upload(filePath, file);
-
-            if (!uploadError) {
-                const { data: publicUrlData } = supabaseClient.storage
-                    .from("memory-files")
-                    .getPublicUrl(filePath);
-                imageUrl = publicUrlData.publicUrl;
-            }
-        }
-
-        if (recordedAudioBlob) {
-            const audioPath = `${currentUser.id}/${Date.now()}_audio.webm`;
-            const { error: audioError } = await supabaseClient.storage
-                .from("memory-files")
-                .upload(audioPath, recordedAudioBlob);
-
-            if (!audioError) {
-                const { data: audioPublicUrl } = supabaseClient.storage
-                    .from("memory-files")
-                    .getPublicUrl(audioPath);
-                audioUrl = audioPublicUrl.publicUrl;
-            }
-        }
-
-        const { error: dbError } = await supabaseClient.from("memories").insert([
-            {
-                user_id: currentUser.id,
-                title: title,
-                description: "Cloud private memory upload.",
-                image_url: imageUrl,
-                audio_url: audioUrl,
-                is_time_capsule: isCapsule,
-                unlock_date: isCapsule && unlockDate ? unlockDate : null
-            }
-        ]);
-
-        if (dbError) {
-            alert("Error saving memory: " + dbError.message);
-            return;
-        }
-
-        memoryForm.reset();
-        recordedAudioBlob = null;
-        if (voiceStatus) voiceStatus.textContent = "Ready to record...";
-        if (capsuleDateGroup) capsuleDateGroup.classList.add("hidden");
-        uploadModal.classList.add("hidden");
-
-        fetchMemories("navVault");
-    });
-}
-
-// ==========================================
-// 7. PAGE LOAD INITIALIZATION
-// ==========================================
-window.addEventListener("DOMContentLoaded", () => {
-    updateAuthUI();
-});
+        let imageUrl = "
