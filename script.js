@@ -1,38 +1,17 @@
 // ==========================================
-// 1. DATA STORE (With LocalStorage Support)
+// 1. SUPABASE CONFIGURATION & INITIALIZATION
 // ==========================================
-const defaultMemories = [
-    {
-        id: 101,
-        title: "Kyoto Autumn Walk",
-        description: "Golden leaves falling around the old temple path. Quiet afternoon in October.",
-        category: "vault",
-        image: "https://images.unsplash.com/photo-1493976040374-85c8e12f0c0e?auto=format&fit=crop&w=600&q=80",
-        audioUrl: null,
-        isTimeCapsule: false,
-        unlockDate: null,
-        tags: ["travel", "japan"]
-    },
-    {
-        id: 102,
-        title: "Future Birthday Wish",
-        description: "A message left for my future self to open on my birthday next year!",
-        category: "capsule",
-        image: "https://images.unsplash.com/photo-1513151233558-d860c5398176?auto=format&fit=crop&w=600&q=80",
-        audioUrl: null,
-        isTimeCapsule: true,
-        unlockDate: "2027-12-31",
-        tags: ["future", "capsule"]
-    }
-];
+const SUPABASE_URL = "https://yevyshrrkdxzoeccxmer.supabase.co"; // Replace with your Supabase URL
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlldnlzaHJya2R4em9lY2N4bWVyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTIzOTcxNjAsImV4cCI6MjEwNzk3MzE2MH0._6MqLnoo5u9Cvth_FqBpjEp4QUty_BqD-pLmMMdtWQw"; // Replace with your Supabase Anon Key
 
-// Load memories from localStorage or fallback to defaults
-let memories = JSON.parse(localStorage.getItem("memoryVault_items")) || defaultMemories;
+const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-// MediaRecorder setup for Voice Notes
+let memories = [];
+let currentUser = null;
+
 let mediaRecorder;
 let audioChunks = [];
-let recordedAudioBlobUrl = null;
+let recordedAudioBlob = null;
 
 // ==========================================
 // 2. DOM ELEMENTS
@@ -59,29 +38,115 @@ const copyLinkBtn = document.getElementById("copyLinkBtn");
 const copyStatus = document.getElementById("copyStatus");
 
 // ==========================================
-// 3. RENDER FUNCTION
+// 3. AUTHENTICATION STATE & MANAGEMENT
 // ==========================================
-function renderMemories(filterCategory = "navVault", searchQuery = "") {
+async function checkUserSession() {
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    currentUser = session ? session.user : null;
+    
+    if (currentUser) {
+        updateAuthUI(true);
+        fetchMemories();
+    } else {
+        updateAuthUI(false);
+        promptLoginOrSignup();
+    }
+}
+
+function updateAuthUI(isLoggedIn) {
+    const sidebarFooter = document.querySelector(".sidebar-footer");
+    if (sidebarFooter) {
+        if (isLoggedIn) {
+            sidebarFooter.innerHTML = `
+                <div class="user-badge" style="display:flex; flex-direction:column; gap:0.5qrem;">
+                    <span style="font-size:0.8rem; color:var(--text-secondary); word-break:break-all;">👤 ${currentUser.email}</span>
+                    <button id="logoutBtn" style="background:rgba(239,68,68,0.2); border:1px solid #ef4444; color:#f87171; padding:0.4rem; border-radius:6px; cursor:pointer; font-weight:600;">Sign Out</button>
+                </div>
+            `;
+            document.getElementById("logoutBtn").addEventListener("click", async () => {
+                await supabaseClient.auth.signOut();
+                location.reload();
+            });
+        } else {
+            sidebarFooter.innerHTML = `
+                <button id="loginPromptBtn" class="primary-btn" style="width:100%; padding:0.5rem; font-size:0.85rem;">🔑 Sign In / Register</button>
+            `;
+            document.getElementById("loginPromptBtn").addEventListener("click", promptLoginOrSignup);
+        }
+    }
+}
+
+async function promptLoginOrSignup() {
+    const email = prompt("Enter your email address to sign in or create an account:");
+    if (!email) return;
+    const password = prompt("Enter your password:");
+    if (!password) return;
+
+    // Try signing in first
+    let { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
+    
+    if (error) {
+        // If account doesn't exist, sign up automatically
+        let { data: signUpData, error: signUpError } = await supabaseClient.auth.signUp({ email, password });
+        if (signUpError) {
+            alert("Authentication Error: " + signUpError.message);
+        } else {
+            alert("Account created successfully! You are now logged in.");
+            location.reload();
+        }
+    } else {
+        alert("Signed in successfully!");
+        location.reload();
+    }
+}
+
+// ==========================================
+// 4. FETCH MEMORIES FROM CLOUD DATABASE
+// ==========================================
+async function fetchMemories(filterCategory = "navVault", searchQuery = "") {
+    if (!currentUser) return;
+
+    let query = supabaseClient
+        .from("memories")
+        .select("*")
+        .eq("user_id", currentUser.id)
+        .order("created_at", { ascending: false });
+
+    const { data, error } = await query;
+
+    if (error) {
+        console.error("Error fetching memories:", error);
+        return;
+    }
+
+    memories = data || [];
+    renderMemoryGrid(filterCategory, searchQuery);
+}
+
+// ==========================================
+// 5. RENDER FUNCTION
+// ==========================================
+function renderMemoryGrid(filterCategory = "navVault", searchQuery = "") {
     memoryGrid.innerHTML = "";
 
     const filtered = memories.filter(mem => {
         let matchCategory = true;
-        if (filterCategory === "navUploads") matchCategory = mem.category === "uploads";
-        else if (filterCategory === "navCapsules") matchCategory = mem.isTimeCapsule;
+        if (filterCategory === "navUploads") matchCategory = !mem.is_time_capsule;
+        else if (filterCategory === "navCapsules") matchCategory = mem.is_time_capsule;
 
         const matchSearch = mem.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                            mem.description.toLowerCase().includes(searchQuery.toLowerCase());
+                            (mem.description && mem.description.toLowerCase().includes(searchQuery.toLowerCase()));
 
         return matchCategory && matchSearch;
     });
 
     if (filtered.length === 0) {
-        memoryGrid.innerHTML = `<div class="empty-state" style="color:var(--text-secondary); text-align:center; grid-column: 1/-1; padding: 2rem;"><p>No memories found here yet!</p></div>`;
+        memoryGrid.innerHTML = `<div class="empty-state" style="color:var(--text-secondary); text-align:center; grid-column: 1/-1; padding: 2rem;"><p>No memories found in your cloud vault yet!</p></div>`;
         return;
     }
 
     filtered.forEach(mem => {
-        const isLocked = mem.isTimeCapsule && new Date() < new Date(mem.unlockDate);
+        const isLocked = mem.is_time_capsule && mem.unlock_date && new Date() < new Date(mem.unlock_date);
         
         const card = document.createElement("div");
         card.className = `memory-card ${isLocked ? "time-capsule-locked" : ""}`;
@@ -89,16 +154,16 @@ function renderMemories(filterCategory = "navVault", searchQuery = "") {
         
         card.innerHTML = `
             <div class="card-image-container" style="position: relative; height: 180px; overflow: hidden;">
-                <img src="${mem.image}" alt="${mem.title}" class="card-image ${isLocked ? "blurred-image" : ""}" style="width: 100%; height: 100%; object-fit: cover; ${isLocked ? "filter: blur(8px);" : ""}">
-                ${isLocked ? `<div class="lock-overlay" style="position: absolute; inset: 0; background: rgba(0,0,0,0.5); display: flex; flex-direction: column; align-items: center; justify-content: center; color: white;"><span class="lock-icon" style="font-size: 2rem;">🔒</span><p style="font-size: 0.85rem; margin-top: 0.5rem;">Unlocks: ${mem.unlockDate}</p></div>` : ""}
+                <img src="${mem.image_url || 'https://images.unsplash.com/photo-1518173946687-a4c8a383392e?auto=format&fit=crop&w=600&q=80'}" alt="${mem.title}" class="card-image ${isLocked ? "blurred-image" : ""}" style="width: 100%; height: 100%; object-fit: cover; ${isLocked ? "filter: blur(8px);" : ""}">
+                ${isLocked ? `<div class="lock-overlay" style="position: absolute; inset: 0; background: rgba(0,0,0,0.5); display: flex; flex-direction: column; align-items: center; justify-content: center; color: white;"><span class="lock-icon" style="font-size: 2rem;">🔒</span><p style="font-size: 0.85rem; margin-top: 0.5rem;">Unlocks: ${new Date(mem.unlock_date).toLocaleDateString()}</p></div>` : ""}
             </div>
             <div class="card-content" style="padding: 1.25rem; display: flex; flex-direction: column; gap: 0.75rem; flex: 1;">
                 <h3 style="margin: 0; font-size: 1.1rem; color: white;">${mem.title}</h3>
-                <p style="margin: 0; color: var(--text-secondary); font-size: 0.9rem;">${isLocked ? "<em>This time capsule is locked tight until the unlock date!</em>" : mem.description}</p>
+                <p style="margin: 0; color: var(--text-secondary); font-size: 0.9rem;">${isLocked ? "<em>This time capsule is locked tight until the unlock date!</em>" : (mem.description || '')}</p>
                 
-                ${!isLocked && mem.audioUrl ? `
+                ${!isLocked && mem.audio_url ? `
                     <div class="audio-player-wrapper" style="margin-top: 0.5rem;">
-                        <audio controls src="${mem.audioUrl}" style="width: 100%; height: 36px;"></audio>
+                        <audio controls src="${mem.audio_url}" style="width: 100%; height: 36px;"></audio>
                     </div>
                 ` : ""}
 
@@ -110,7 +175,7 @@ function renderMemories(filterCategory = "navVault", searchQuery = "") {
 
         const shareBtn = card.querySelector(".share-action-btn");
         shareBtn.addEventListener("click", () => {
-            const shareUrl = `https://chrollo-090.github.io/memory-vault/?view_id=${mem.id}&token=secure_key_${Math.random().toString(36).substring(2, 9)}`;
+            const shareUrl = `https://chrollo-090.github.io/memory-vault/?view_id=${mem.id}`;
             shareLinkInput.value = shareUrl;
             copyStatus.textContent = "";
             shareModal.classList.remove("hidden");
@@ -121,43 +186,39 @@ function renderMemories(filterCategory = "navVault", searchQuery = "") {
 }
 
 // ==========================================
-// 4. SIDEBAR & SEARCH EVENT LISTENERS
+// 6. EVENT LISTENERS & FORM SUBMISSION
 // ==========================================
 navItems.forEach(item => {
     item.addEventListener("click", (e) => {
         e.preventDefault();
         navItems.forEach(i => i.classList.remove("active"));
         item.classList.add("active");
-        renderMemories(item.id, searchInput.value);
+        renderMemoryGrid(item.id, searchInput.value);
     });
 });
 
 searchInput.addEventListener("input", (e) => {
     const activeNav = document.querySelector(".nav-btn.active");
     const activeId = activeNav ? activeNav.id : "navVault";
-    renderMemories(activeId, e.target.value);
+    renderMemoryGrid(activeId, e.target.value);
 });
 
-// ==========================================
-// 5. MODALS & TOGGLES LOGIC
-// ==========================================
 if (openUploadBtn && uploadModal) {
-    openUploadBtn.addEventListener("click", () => uploadModal.classList.remove("hidden"));
+    openUploadBtn.addEventListener("click", () => {
+        if (!currentUser) {
+            alert("Please sign in first to upload memories to the cloud.");
+            promptLoginOrSignup();
+            return;
+        }
+        uploadModal.classList.remove("hidden");
+    });
 }
-if (closeModalBtn && uploadModal) {
-    closeModalBtn.addEventListener("click", () => uploadModal.classList.add("hidden"));
-}
-if (closeShareBtn && shareModal) {
-    closeShareBtn.addEventListener("click", () => shareModal.classList.add("hidden"));
-}
+if (closeModalBtn && uploadModal) closeModalBtn.addEventListener("click", () => uploadModal.classList.add("hidden"));
+if (closeShareBtn && shareModal) closeShareBtn.addEventListener("click", () => shareModal.classList.add("hidden"));
 
 if (isCapsuleCheckbox && capsuleDateGroup) {
     isCapsuleCheckbox.addEventListener("change", (e) => {
-        if (e.target.checked) {
-            capsuleDateGroup.classList.remove("hidden");
-        } else {
-            capsuleDateGroup.classList.add("hidden");
-        }
+        capsuleDateGroup.classList.toggle("hidden", !e.target.checked);
     });
 }
 
@@ -169,9 +230,7 @@ if (copyLinkBtn && shareLinkInput && copyStatus) {
     });
 }
 
-// ==========================================
-// 6. LIVE MICROPHONE VOICE RECORDING
-// ==========================================
+// Voice Recording
 if (recordVoiceBtn) {
     recordVoiceBtn.addEventListener("click", async () => {
         try {
@@ -182,8 +241,7 @@ if (recordVoiceBtn) {
 
                 mediaRecorder.ondataavailable = (e) => audioChunks.push(e.data);
                 mediaRecorder.onstop = () => {
-                    const audioBlob = new Blob(audioChunks, { type: "audio/webm" });
-                    recordedAudioBlobUrl = URL.createObjectURL(audioBlob);
+                    recordedAudioBlob = new Blob(audioChunks, { type: "audio/webm" });
                     voiceStatus.textContent = "Voice note recorded! 🎙️✅";
                 };
 
@@ -200,74 +258,102 @@ if (recordVoiceBtn) {
     });
 }
 
-// ==========================================
-// 7. FORM SUBMISSION (Create New Memory)
-// ==========================================
+// Upload Form Submission to Supabase Cloud
 if (memoryForm) {
-    memoryForm.addEventListener("submit", (e) => {
+    memoryForm.addEventListener("submit", async (e) => {
         e.preventDefault();
+        if (!currentUser) return alert("You must be logged in.");
 
         const title = document.getElementById("memoryTitle").value;
-        const description = "Newly uploaded private memory.";
         const fileInput = document.getElementById("fileInput");
         const isCapsule = document.getElementById("isCapsule").checked;
         const unlockDate = document.getElementById("unlockDate").value;
 
         let imageUrl = "https://images.unsplash.com/photo-1518173946687-a4c8a383392e?auto=format&fit=crop&w=600&q=80";
+        let audioUrl = null;
+
+        // Upload Image File to Supabase Storage Bucket
         if (fileInput.files && fileInput.files[0]) {
-            imageUrl = URL.createObjectURL(fileInput.files[0]);
+            const file = fileInput.files[0];
+            const filePath = `${currentUser.id}/${Date.now()}_${file.name}`;
+            const { data: uploadData, error: uploadError } = await supabaseClient.storage
+                .from("memory-files")
+                .upload(filePath, file);
+
+            if (!uploadError) {
+                const { data: publicUrlData } = supabaseClient.storage
+                    .from("memory-files")
+                    .getPublicUrl(filePath);
+                imageUrl = publicUrlData.publicUrl;
+            }
         }
 
-        const newMemory = {
-            id: Date.now(),
-            title: title,
-            description: description,
-            category: "uploads",
-            image: imageUrl,
-            audioUrl: recordedAudioBlobUrl,
-            isTimeCapsule: isCapsule,
-            unlockDate: isCapsule ? unlockDate : null,
-            tags: ["upload"]
-        };
+        // Upload Audio File if recorded
+        if (recordedAudioBlob) {
+            const audioPath = `${currentUser.id}/${Date.now()}_audio.webm`;
+            const { data: audioUploadData, error: audioError } = await supabaseClient.storage
+                .from("memory-files")
+                .upload(audioPath, recordedAudioBlob);
 
-        memories.unshift(newMemory);
-        localStorage.setItem("memoryVault_items", JSON.stringify(memories));
+            if (!audioError) {
+                const { data: audioPublicUrl } = supabaseClient.storage
+                    .from("memory-files")
+                    .getPublicUrl(audioPath);
+                audioUrl = audioPublicUrl.publicUrl;
+            }
+        }
+
+        // Save Record to Supabase Database
+        const { error: dbError } = await supabaseClient.from("memories").insert([
+            {
+                user_id: currentUser.id,
+                title: title,
+                description: "Cloud private memory upload.",
+                image_url: imageUrl,
+                audio_url: audioUrl,
+                is_time_capsule: isCapsule,
+                unlock_date: isCapsule && unlockDate ? unlockDate : null
+            }
+        ]);
+
+        if (dbError) {
+            alert("Error saving memory: " + dbError.message);
+            return;
+        }
 
         memoryForm.reset();
-        recordedAudioBlobUrl = null;
+        recordedAudioBlob = null;
         if (voiceStatus) voiceStatus.textContent = "Ready to record...";
         if (capsuleDateGroup) capsuleDateGroup.classList.add("hidden");
         uploadModal.classList.add("hidden");
 
-        navItems.forEach(i => i.classList.remove("active"));
-        const uploadsTab = document.getElementById("navUploads");
-        if (uploadsTab) uploadsTab.classList.add("active");
-
-        renderMemories("navUploads");
+        fetchMemories("navVault");
     });
 }
 
 // ==========================================
-// 8. PAGE LOAD & DIRECT LINK ROUTING
+// 7. INITIALIZE ON PAGE LOAD & SHARED ROUTING
 // ==========================================
-window.addEventListener("DOMContentLoaded", () => {
-    renderMemories("navVault");
+window.addEventListener("DOMContentLoaded", async () => {
+    await checkUserSession();
 
     const urlParams = new URLSearchParams(window.location.search);
     const viewId = urlParams.get("view_id");
 
-    if (viewId) {
-        const targetMemory = memories.find(m => m.id == viewId);
+    if (viewId && currentUser) {
+        const { data: targetMemory, error } = await supabaseClient
+            .from("memories")
+            .select("*")
+            .eq("id", viewId)
+            .single();
+
         if (targetMemory) {
-            const isLocked = targetMemory.isTimeCapsule && new Date() < new Date(targetMemory.unlockDate);
+            const isLocked = targetMemory.is_time_capsule && new Date() < new Date(targetMemory.unlock_date);
             if (isLocked) {
-                alert(`⏳ This Memory Vault capsule is locked until ${targetMemory.unlockDate}!`);
+                alert(`⏳ This Memory Vault capsule is locked until ${new Date(targetMemory.unlock_date).toLocaleDateString()}!`);
             } else {
-                // Instantly pop up or highlight the targeted shared memory card!
-                alert(`✨ Shared Memory Found: "${targetMemory.title}"\n\n${targetMemory.description}`);
+                alert(`✨ Shared Memory Found: "${targetMemory.title}"`);
             }
-        } else {
-            alert("⚠️ This shared memory item could not be found locally on this device.");
         }
     }
 });
