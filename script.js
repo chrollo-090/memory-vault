@@ -126,9 +126,14 @@ function renderMemories(filterQuery = "") {
             <button class="share-action-btn" data-id="${mem.id}">🔗 Share Memory</button>
         `;
 
-        const shareBtn = card.querySelector(".share-action-btn");
+       const shareBtn = card.querySelector(".share-action-btn");
         shareBtn.addEventListener("click", () => {
-            shareLinkInput.value = `https://memoryvault.app/shared/view?id=${mem.id}&token=secure_key_${Math.random().toString(36).substring(2, 9)}`;
+            // Automatically uses your live GitHub URL or falls back safely
+            const baseUrl = window.location.hostname.includes("github.io") 
+                ? window.location.href.split('?')[0] 
+                : "https://chrollo-090.github.io/memory-vault/";
+            
+            shareLinkInput.value = `${baseUrl}?id=${mem.id}&token=secure_key_${Math.random().toString(36).substring(2, 9)}`;
             copyStatus.textContent = "";
             shareModal.classList.remove("hidden");
         });
