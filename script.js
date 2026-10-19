@@ -333,6 +333,8 @@ if (memoryForm) {
                     .from("memory-files")
                     .getPublicUrl(filePath);
                 imageUrl = publicUrlData.publicUrl;
+            } else {
+                console.error("Storage upload error:", uploadError.message);
             }
         }
 
