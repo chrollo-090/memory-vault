@@ -197,9 +197,13 @@ function renderMemoryGrid(filterCategory = "navVault", searchQuery = "") {
         card.className = `memory-card ${isLocked ? "time-capsule-locked" : ""}`;
         card.style.cssText = "background: rgba(17, 24, 39, 0.7); border: 1px solid var(--border-color); border-radius: 16px; overflow: hidden; display: flex; flex-direction: column;";
         
+        const validImageSrc = (mem.image_url && mem.image_url.startsWith('http')) 
+            ? mem.image_url 
+            : 'https://images.unsplash.com/photo-1518173946687-a4c8a383392e?auto=format&fit=crop&w=600&q=80';
+
         card.innerHTML = `
-            <div class="card-image-container" style="position: relative; height: 180px; overflow: hidden;">
-                <img src="${mem.image_url || 'https://images.unsplash.com/photo-1518173946687-a4c8a383392e?auto=format&fit=crop&w=600&q=80'}" alt="${mem.title}" class="card-image ${isLocked ? "blurred-image" : ""}" style="width: 100%; height: 100%; object-fit: cover; ${isLocked ? "filter: blur(8px);" : ""}">
+            <div class="card-image-container" style="position: relative; height: 180px; overflow: hidden; background: #0b0f19;">
+                <img src="${validImageSrc}" alt="Memory Image" class="card-image ${isLocked ? "blurred-image" : ""}" style="width: 100%; height: 100%; object-fit: cover; ${isLocked ? "filter: blur(8px);" : ""}" onerror="this.src='https://images.unsplash.com/photo-1518173946687-a4c8a383392e?auto=format&fit=crop&w=600&q=80'">
                 ${isLocked ? `<div class="lock-overlay" style="position: absolute; inset: 0; background: rgba(0,0,0,0.5); display: flex; flex-direction: column; align-items: center; justify-content: center; color: white;"><span class="lock-icon" style="font-size: 2rem;">🔒</span><p style="font-size: 0.85rem; margin-top: 0.5rem;">Unlocks: ${new Date(mem.unlock_date).toLocaleDateString()}</p></div>` : ""}
             </div>
             <div class="card-content" style="padding: 1.25rem; display: flex; flex-direction: column; gap: 0.75rem; flex: 1;">
