@@ -4,6 +4,11 @@
 const SUPABASE_URL = "https://yevyshrrkdxzoeccxmer.supabase.co"; 
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlldnlzaHJya2R4em9lY2N4bWVyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTIzOTcxNjAsImV4cCI6MjEwNzk3MzE2MH0._6MqLnoo5u9Cvth_FqBpjEp4QUty_BqD-pLmMMdtWQw"; 
 
+// Safety check to ensure Supabase loaded correctly from CDN
+if (!window.supabase) {
+    alert("Error: Supabase library failed to load. Check your internet connection or script tag.");
+}
+
 const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 let memories = [];
@@ -14,7 +19,7 @@ let audioChunks = [];
 let recordedAudioBlob = null;
 
 // ==========================================
-// 2. DOM ELEMENTS
+// 2. DOM ELEMENTS (Keep your existing elements below...)
 // ==========================================
 const memoryGrid = document.getElementById("memoryGrid");
 const navItems = document.querySelectorAll(".nav-btn");
@@ -36,10 +41,30 @@ const closeShareBtn = document.getElementById("closeShareBtn");
 const shareLinkInput = document.getElementById("shareLinkInput");
 const copyLinkBtn = document.getElementById("copyLinkBtn");
 const copyStatus = document.getElementById("copyStatus");
-
 // ==========================================
 // 3. AUTHENTICATION & UI MANAGEMENT
 // ==========================================
+async function initAuth() {
+    try {
+        const { data: { session }, error } = await supabaseClient.auth.getSession();
+        if (error) throw error;
+        
+        currentUser = session ? session.user : null;
+        updateAuthUI();
+        
+        if (currentUser) {
+            fetchMemories();
+        } else {
+            memories = [];
+            renderMemoryGrid();
+        }
+    } catch (err) {
+        console.error("Auth init error:", err);
+        updateAuthUI();
+    }
+}
+
+// Listen for subsequent auth changes (sign in/out)
 supabaseClient.auth.onAuthStateChange((event, session) => {
     currentUser = session ? session.user : null;
     updateAuthUI();
@@ -92,7 +117,6 @@ async function showAuthModalOrPrompt() {
         alert("Signed in successfully!");
     }
 }
-
 // ==========================================
 // 4. FETCH MEMORIES FROM CLOUD DATABASE
 // ==========================================
@@ -204,3 +228,9 @@ if (openUploadBtn && uploadModal) {
         if (!currentUser) {
             alert("Please sign in first to upload memories to the cloud.");
             showAuthModalOrPrompt();
+// ==========================================
+// 8. PAGE LOAD INITIALIZATION
+// ==========================================
+window.addEventListener("DOMContentLoaded", () => {
+    initAuth();
+});
