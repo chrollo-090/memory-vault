@@ -6,7 +6,7 @@ let memories = [
         id: 101,
         title: "Kyoto Autumn Walk",
         description: "Golden leaves falling around the old temple path. Quiet afternoon in October.",
-        category: "vault", // Default Vault item
+        category: "vault",
         image: "https://images.unsplash.com/photo-1493976040374-85c8e12f0c0e?auto=format&fit=crop&w=600&q=80",
         audioUrl: null,
         isTimeCapsule: false,
@@ -21,7 +21,7 @@ let memories = [
         image: "https://images.unsplash.com/photo-1513151233558-d860c5398176?auto=format&fit=crop&w=600&q=80",
         audioUrl: null,
         isTimeCapsule: true,
-        unlockDate: "2027-12-31", // Future date = locked
+        unlockDate: "2027-12-31",
         tags: ["future", "capsule"]
     }
 ];
@@ -63,13 +63,10 @@ function renderMemories(filterCategory = "all", searchQuery = "") {
     memoryGrid.innerHTML = "";
 
     const filtered = memories.filter(mem => {
-        // Category Filter
         let matchCategory = true;
         if (filterCategory === "uploads") matchCategory = mem.category === "uploads";
         else if (filterCategory === "capsule") matchCategory = mem.isTimeCapsule;
-        else if (filterCategory === "shared") matchCategory = mem.isShared;
 
-        // Search Filter
         const matchSearch = mem.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
                             mem.description.toLowerCase().includes(searchQuery.toLowerCase());
 
@@ -108,7 +105,6 @@ function renderMemories(filterCategory = "all", searchQuery = "") {
             </div>
         `;
 
-        // Share button listener inside rendered card
         const shareBtn = card.querySelector(".share-action-btn");
         shareBtn.addEventListener("click", () => {
             const shareUrl = `https://chrollo-090.github.io/memory-vault/?view_id=${mem.id}&token=secure_key_${Math.random().toString(36).substring(2, 9)}`;
@@ -148,7 +144,6 @@ openModalBtn.addEventListener("click", () => createModal.classList.remove("hidde
 closeModalBtn.addEventListener("click", () => createModal.classList.add("hidden"));
 closeShareModalBtn.addEventListener("click", () => shareModal.classList.add("hidden"));
 
-// Copy Share Link to Clipboard
 copyShareBtn.addEventListener("click", () => {
     shareLinkInput.select();
     navigator.clipboard.writeText(shareLinkInput.value);
@@ -200,7 +195,7 @@ memoryForm.addEventListener("submit", (e) => {
     const isCapsule = document.getElementById("capsuleCheckbox").checked;
     const unlockDate = document.getElementById("unlockDateInput").value;
 
-    let imageUrl = "https://images.unsplash.com/photo-1518173946687-a4c8a383392e?auto=format&fit=crop&w=600&q=80"; // Default placeholder
+    let imageUrl = "https://images.unsplash.com/photo-1518173946687-a4c8a383392e?auto=format&fit=crop&w=600&q=80";
     if (imageFileInput.files && imageFileInput.files[0]) {
         imageUrl = URL.createObjectURL(imageFileInput.files[0]);
     }
@@ -209,7 +204,7 @@ memoryForm.addEventListener("submit", (e) => {
         id: Date.now(),
         title: title,
         description: description,
-        category: "uploads", // Goes to "My Uploads"
+        category: "uploads",
         image: imageUrl,
         audioUrl: recordedAudioBlobUrl,
         isTimeCapsule: isCapsule,
@@ -219,13 +214,11 @@ memoryForm.addEventListener("submit", (e) => {
 
     memories.unshift(newMemory);
 
-    // Reset Form State
     memoryForm.reset();
     recordedAudioBlobUrl = null;
     audioStatus.textContent = "";
     createModal.classList.add("hidden");
 
-    // Switch view to 'My Uploads' automatically
     navItems.forEach(i => i.classList.remove("active"));
     const uploadsTab = document.querySelector('[data-category="uploads"]');
     if (uploadsTab) uploadsTab.classList.add("active");
@@ -239,7 +232,6 @@ memoryForm.addEventListener("submit", (e) => {
 window.addEventListener("DOMContentLoaded", () => {
     renderMemories("all");
 
-    // Check if the URL contains a shared memory ID query parameter
     const urlParams = new URLSearchParams(window.location.search);
     const viewId = urlParams.get("view_id");
 
