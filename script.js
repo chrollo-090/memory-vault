@@ -42,28 +42,8 @@ const copyLinkBtn = document.getElementById("copyLinkBtn");
 const copyStatus = document.getElementById("copyStatus");
 
 // ==========================================
-// 3. AUTHENTICATION & UI MANAGEMENT
+// 3. AUTHENTICATION & UI MANAGEMENT (Simplified)
 // ==========================================
-async function initAuth() {
-    try {
-        const { data: { session }, error } = await supabaseClient.auth.getSession();
-        if (error) throw error;
-        
-        currentUser = session ? session.user : null;
-        updateAuthUI();
-        
-        if (currentUser) {
-            fetchMemories();
-        } else {
-            memories = [];
-            renderMemoryGrid();
-        }
-    } catch (err) {
-        console.error("Auth init error:", err);
-        updateAuthUI();
-    }
-}
-
 supabaseClient.auth.onAuthStateChange((event, session) => {
     currentUser = session ? session.user : null;
     updateAuthUI();
@@ -74,6 +54,13 @@ supabaseClient.auth.onAuthStateChange((event, session) => {
         renderMemoryGrid();
     }
 });
+
+// Fallback check in case the event listener takes a moment
+setTimeout(() => {
+    if (!currentUser && document.querySelector(".status-dot")) {
+        updateAuthUI();
+    }
+}, 1000);
 
 function updateAuthUI() {
     const sidebarFooter = document.querySelector(".sidebar-footer");
@@ -86,14 +73,20 @@ function updateAuthUI() {
                 <button id="logoutBtn" style="background:rgba(239,68,68,0.2); border:1px solid #ef4444; color:#f87171; padding:0.4rem; border-radius:6px; cursor:pointer; font-weight:600;">Sign Out</button>
             </div>
         `;
-        document.getElementById("logoutBtn").addEventListener("click", async () => {
-            await supabaseClient.auth.signOut();
-        });
+        const logoutBtn = document.getElementById("logoutBtn");
+        if (logoutBtn) {
+            logoutBtn.addEventListener("click", async () => {
+                await supabaseClient.auth.signOut();
+            });
+        }
     } else {
         sidebarFooter.innerHTML = `
             <button id="loginPromptBtn" class="primary-btn" style="width:100%; padding:0.5rem; font-size:0.85rem; background:#3b82f6; border:none; border-radius:8px; color:white; font-weight:600; cursor:pointer;">🔑 Sign In / Register</button>
         `;
-        document.getElementById("loginPromptBtn").addEventListener("click", showAuthModalOrPrompt);
+        const loginPromptBtn = document.getElementById("loginPromptBtn");
+        if (loginPromptBtn) {
+            loginPromptBtn.addEventListener("click", showAuthModalOrPrompt);
+        }
     }
 }
 
@@ -116,7 +109,6 @@ async function showAuthModalOrPrompt() {
         alert("Signed in successfully!");
     }
 }
-
 // ==========================================
 // 4. FETCH MEMORIES FROM CLOUD DATABASE
 // ==========================================
@@ -352,5 +344,5 @@ if (memoryForm) {
 // 7. PAGE LOAD INITIALIZATION
 // ==========================================
 window.addEventListener("DOMContentLoaded", () => {
-    initAuth();
+    updateAuthUI();
 });
