@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Memory Vault — Private & Capsule Vault</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;600;700&display=swap" rel="stylesheet">
+</head>
+<body class="app-layout">
+
+    <!-- Left Sidebar Navigation -->
+    <aside class="app-sidebar">
+        <div class="logo-area">
+            <span class="logo-icon">🔒</span>
+            <h2>MemoryVault</h2>
+        </div>
+
+        <nav class="sidebar-nav">
+            <button id="navVault" class="nav-btn active"><span>📂</span> My Vault</button>
+            <button id="navUploads" class="nav-btn"><span>📁</span> My Uploads</button>
+            <button id="navCapsules" class="nav-btn"><span>⏳</span> Time Capsules</button>
+            <button id="navShared" class="nav-btn"><span>👥</span> Shared Collections</button>
+        </nav>
+
+        <div class="sidebar-footer">
+            <div class="user-badge">
+                <span class="status-dot"></span> Private Mode
+            </div>
+        </div>
+    </aside>
+
+    <!-- Main Content Wrapper -->
+    <main class="main-content">
+        <!-- Action / Controls Bar -->
+        <section class="controls-bar">
+            <button id="openUploadBtn" class="primary-btn">+ Create Memory</button>
+            <button id="googlePhotosBtn" class="secondary-btn">
+                <span>🖼️</span> Sync Google Photos
+            </button>
+            <div class="search-box">
+                <input type="text" id="searchInput" placeholder="Search memories, tags, or voice notes...">
+            </div>
+        </section>
+
+        <!-- Dynamic Content Grid -->
+        <section id="memoryGrid" class="memory-grid">
+            <!-- JavaScript will render cards here -->
+        </section>
+    </main>
+
+    <!-- Upload & Memory Creation Modal (Hidden by default) -->
+    <div id="uploadModal" class="modal hidden">
+        <div class="glass-card">
+            <button id="closeModalBtn" class="close-btn">&times;</button>
+            <h3>Add New Private Memory</h3>
+            
+            <form id="memoryForm">
+                <div class="form-group">
+                    <label for="memoryTitle">Title</label>
+                    <input type="text" id="memoryTitle" placeholder="e.g., Summer Trip in Japan" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="fileInput">Choose Image/Video (.mp4)</label>
+                    <input type="file" id="fileInput" accept="image/*,video/*">
+                </div>
+
+                <div class="form-group">
+                    <label>Voice Note Attachment</label>
+                    <button type="button" id="recordVoiceBtn" class="secondary-btn" style="width: 100%; justify-content: center; margin-bottom: 0.5rem;">🎙️ Record Voice Note</button>
+                    <span id="voiceStatus" style="font-size: 0.85rem; color: var(--text-secondary);">Ready to record...</span>
+                </div>
+
+                <div class="form-group checkbox-group">
+                    <input type="checkbox" id="isCapsule">
+                    <label for="isCapsule" style="margin-bottom: 0;">Lock in Time Capsule ⏳</label>
+                </div>
+
+                <div id="capsuleDateGroup" class="form-group hidden" style="margin-top: 1rem;">
+                    <label for="unlockDate">Unlock Date</label>
+                    <input type="datetime-local" id="unlockDate">
+                </div>
+
+                <div class="automod-banner">
+                    🛡️ <strong>AI AutoMod Protection Active:</strong> Files are automatically scanned for safety compliance before saving to your vault.
+                </div>
+
+                <button type="submit" class="submit-btn">Save to Vault</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Share Modal -->
+    <div id="shareModal" class="modal hidden">
+        <div class="glass-card" style="max-width: 420px; text-align: center;">
+            <button id="closeShareBtn" class="close-btn">&times;</button>
+            <h3>Share Memory 🌐</h3>
+            <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 1.5rem;">Anyone with this secure link can view this memory item.</p>
+            
+            <div style="display: flex; gap: 0.5rem; margin-bottom: 1.5rem;">
+                <input type="text" id="shareLinkInput" readonly style="flex: 1; padding: 0.75rem; background: rgba(9,13,22,0.6); border: 1px solid var(--border-color); border-radius: 10px; color: white; font-size: 0.85rem; outline: none;">
+                <button id="copyLinkBtn" class="primary-btn" style="padding: 0.75rem 1rem;">Copy</button>
+            </div>
+            
+            <span id="copyStatus" style="color: #22c55e; font-size: 0.85rem; font-weight: 600;"></span>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
