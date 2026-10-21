@@ -81,11 +81,24 @@ function updateAuthUI() {
         }
     } else {
         sidebarFooter.innerHTML = `
-            <button id="loginPromptBtn" class="primary-btn" style="width:100%; padding:0.5rem; font-size:0.85rem; background:#3b82f6; border:none; border-radius:8px; color:white; font-weight:600; cursor:pointer;">🔑 Sign In / Register</button>
+            <div style="display:flex; flex-direction:column; gap:0.5rem; width:100%;">
+                <button id="loginPromptBtn" class="primary-btn" style="width:100%; padding:0.5rem; font-size:0.85rem; background:#3b82f6; border:none; border-radius:8px; color:white; font-weight:600; cursor:pointer;">🔑 Email Sign In</button>
+                <button id="googleLoginBtn" style="width:100%; padding:0.5rem; font-size:0.85rem; background:#ffffff; border:none; border-radius:8px; color:#111827; font-weight:600; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:0.5rem;">🌐 Sign in with Google</button>
+            </div>
         `;
         const loginPromptBtn = document.getElementById("loginPromptBtn");
         if (loginPromptBtn) {
             loginPromptBtn.addEventListener("click", showAuthModalOrPrompt);
+        }
+
+        const googleLoginBtn = document.getElementById("googleLoginBtn");
+        if (googleLoginBtn) {
+            googleLoginBtn.addEventListener("click", async () => {
+                const { error } = await supabaseClient.auth.signInWithOAuth({
+                    provider: 'google',
+                });
+                if (error) alert("Google Login Error: " + error.message);
+            });
         }
     }
 }
@@ -202,9 +215,9 @@ function renderMemoryGrid(filterCategory = "navVault", searchQuery = "") {
             : 'https://images.unsplash.com/photo-1518173946687-a4c8a383392e?auto=format&fit=crop&w=600&q=80';
 
         card.innerHTML = `
-            <div class="card-image-container" style="position: relative; height: 180px; overflow: hidden; background: #0b0f19;">
-                <img src="${validImageSrc}" alt="Memory Image" class="card-image ${isLocked ? "blurred-image" : ""}" style="width: 100%; height: 100%; object-fit: cover; ${isLocked ? "filter: blur(8px);" : ""}" onerror="this.src='https://images.unsplash.com/photo-1518173946687-a4c8a383392e?auto=format&fit=crop&w=600&q=80'">
-                ${isLocked ? `<div class="lock-overlay" style="position: absolute; inset: 0; background: rgba(0,0,0,0.5); display: flex; flex-direction: column; align-items: center; justify-content: center; color: white;"><span class="lock-icon" style="font-size: 2rem;">🔒</span><p style="font-size: 0.85rem; margin-top: 0.5rem;">Unlocks: ${new Date(mem.unlock_date).toLocaleDateString()}</p></div>` : ""}
+            <div class="card-image-container" style="position: relative; height: 180px; width: 100%; overflow: hidden; background: #1f2937;">
+                <img src="${validImageSrc}" alt="Memory" style="width: 100%; height: 100%; object-fit: cover; display: block; ${isLocked ? "filter: blur(8px);" : ""}" onerror="this.src='https://images.unsplash.com/photo-1518173946687-a4c8a383392e?auto=format&fit=crop&w=600&q=80'">
+                ${isLocked ? `<div class="lock-overlay" style="position: absolute; inset: 0; background: rgba(0,0,0,0.5); display: flex; flex-direction: column; align-items: center; justify-content: center; color: white;"><span style="font-size: 2rem;">🔒</span><p style="font-size: 0.85rem; margin-top: 0.5rem;">Unlocks: ${new Date(mem.unlock_date).toLocaleDateString()}</p></div>` : ""}
             </div>
             <div class="card-content" style="padding: 1.25rem; display: flex; flex-direction: column; gap: 0.75rem; flex: 1;">
                 <h3 style="margin: 0; font-size: 1.1rem; color: white;">${mem.title}</h3>
